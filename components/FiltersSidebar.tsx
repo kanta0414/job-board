@@ -48,7 +48,7 @@ export default function FiltersSidebar(props: {
   };
 
   return (
-    <aside className="w-[260px] shrink-0 border-r border-gray-200 bg-slate-100">
+    <aside className="w-[260px] shrink-0 self-stretch border-r border-gray-200 bg-slate-100">
       <div className="p-4">
         <h2 className="mb-3 text-sm font-semibold text-gray-900">求人カテゴリ</h2>
 

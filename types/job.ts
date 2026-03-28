@@ -12,4 +12,6 @@ export type JobsPageResult = {
   page: number;
   perPage: number;
   totalPages: number;
+  /** フィルター後の全件数（ページング前） */
+  totalCount: number;
 };

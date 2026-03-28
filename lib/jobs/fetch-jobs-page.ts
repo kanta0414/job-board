@@ -22,19 +22,38 @@ export async function fetchJobsPage(
   const from = (safePage - 1) * perPage;
   const to = from + perPage - 1;
 
-  let q = supabase
+  // range 付き select では count がページ内件数になることがあるため、件数は head のみクエリで取得
+  let countQ = supabase
     .from("jobs")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: false });
-
+    .select("*", { count: "exact", head: true });
   if (categories.length > 0) {
-    q = q.in("category", categories);
+    countQ = countQ.in("category", categories);
   }
   if (minSalaryMan !== null && Number.isFinite(minSalaryMan)) {
-    q = q.gte("salary_man", minSalaryMan);
+    countQ = countQ.gte("salary_man", minSalaryMan);
   }
 
-  const { data, error, count } = await q.range(from, to);
+  const { count, error: countError } = await countQ;
+  if (countError) {
+    throw new Error(countError.message);
+  }
+
+  const totalCount =
+    typeof count === "number" && count >= 0 ? count : 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+
+  let dataQ = supabase
+    .from("jobs")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (categories.length > 0) {
+    dataQ = dataQ.in("category", categories);
+  }
+  if (minSalaryMan !== null && Number.isFinite(minSalaryMan)) {
+    dataQ = dataQ.gte("salary_man", minSalaryMan);
+  }
+
+  const { data, error } = await dataQ.range(from, to);
 
   if (error) {
     throw new Error(error.message);
@@ -51,13 +70,11 @@ export async function fetchJobsPage(
         : undefined,
   }));
 
-  const total = typeof count === "number" && count >= 0 ? count : jobs.length;
-  const totalPages = Math.max(1, Math.ceil(total / perPage));
-
   return {
     jobs,
     page: safePage,
     perPage,
     totalPages,
+    totalCount,
   };
 }

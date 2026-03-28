@@ -70,6 +70,7 @@ export default async function HomePage({ searchParams }: PageProps) {
 
   let jobs: Awaited<ReturnType<typeof fetchJobsPage>>["jobs"] = [];
   let totalPages = 1;
+  let totalCount = 0;
   let errorMessage: string | null = null;
 
   try {
@@ -82,16 +83,17 @@ export default async function HomePage({ searchParams }: PageProps) {
     });
     jobs = result.jobs;
     totalPages = result.totalPages;
+    totalCount = result.totalCount;
   } catch (e) {
     errorMessage = e instanceof Error ? e.message : String(e);
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="flex min-h-screen flex-col bg-white">
       <TopNav />
 
-      <main className="px-0 py-0">
-        <div className="flex items-stretch gap-0">
+      <main className="flex min-h-0 flex-1 flex-col px-0 py-0">
+        <div className="flex min-h-0 flex-1 items-stretch gap-0">
           <FiltersSidebar
             categories={categories}
             selectedCategories={selectedCategories}
@@ -103,7 +105,7 @@ export default async function HomePage({ searchParams }: PageProps) {
             <div className="mb-4">
               <h1 className="text-lg font-semibold text-gray-900">求人一覧</h1>
               <div className="mt-1 text-xs text-gray-600">
-                総件数: {jobs.length}件
+                総件数: {totalCount}件
               </div>
             </div>
 
