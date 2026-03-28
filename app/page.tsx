@@ -1,63 +1,137 @@
-import Image from "next/image";
+import FiltersSidebar from "@/components/FiltersSidebar";
+import JobCard from "@/components/JobCard";
+import Pagination from "@/components/Pagination";
+import TopNav from "@/components/TopNav";
+import { JOB_CATEGORY_ORDER } from "@/constants/jobCategories";
+import { fetchJobsPage } from "@/lib/jobs/fetch-jobs-page";
+import { createServerComponentClient } from "@/lib/supabase/server";
+import type { JobCategory } from "@/types/job";
 
-export default function Home() {
+const SALARY_OPTIONS: Array<{ value: number | null; label: string }> = [
+  { value: null, label: "指定なし" },
+  { value: 300, label: "300万円以上" },
+  { value: 350, label: "350万円以上" },
+  { value: 400, label: "400万円以上" },
+  { value: 450, label: "450万円以上" },
+  { value: 500, label: "500万円以上" },
+  { value: 550, label: "550万円以上" },
+  { value: 600, label: "600万円以上" },
+  { value: 650, label: "650万円以上" },
+  { value: 700, label: "700万円以上" },
+];
+
+function firstString(v: string | string[] | undefined): string | undefined {
+  if (v === undefined) return undefined;
+  return Array.isArray(v) ? v[0] : v;
+}
+
+function parseCategoriesParam(sp: Record<string, string | string[] | undefined>) {
+  const raw =
+    firstString(sp.categories) ?? firstString(sp.category) ?? "";
+  if (!raw) return [] as JobCategory[];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function parseMinSalaryParam(
+  sp: Record<string, string | string[] | undefined>,
+): number | null {
+  const raw =
+    firstString(sp.minSalary) ??
+    firstString(sp.min_salary) ??
+    firstString(sp.salaryMin) ??
+    "";
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function parsePageParam(
+  sp: Record<string, string | string[] | undefined>,
+): number {
+  const raw = firstString(sp.page);
+  const n = raw ? Number(raw) : 1;
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.floor(n);
+}
+
+type PageProps = {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
+
+export default async function HomePage({ searchParams }: PageProps) {
+  const sp = await searchParams;
+  const selectedCategories = parseCategoriesParam(sp);
+  const minSalaryOption = parseMinSalaryParam(sp);
+  const page = parsePageParam(sp);
+  const categories: JobCategory[] = JOB_CATEGORY_ORDER;
+
+  let jobs: Awaited<ReturnType<typeof fetchJobsPage>>["jobs"] = [];
+  let totalPages = 1;
+  let errorMessage: string | null = null;
+
+  try {
+    const supabase = await createServerComponentClient();
+    const result = await fetchJobsPage(supabase, {
+      categories: selectedCategories,
+      minSalaryMan: minSalaryOption,
+      page,
+      perPage: 10,
+    });
+    jobs = result.jobs;
+    totalPages = result.totalPages;
+  } catch (e) {
+    errorMessage = e instanceof Error ? e.message : String(e);
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <div className="min-h-screen bg-white">
+      <TopNav />
+
+      <main className="px-0 py-0">
+        <div className="flex items-stretch gap-0">
+          <FiltersSidebar
+            categories={categories}
+            selectedCategories={selectedCategories}
+            minSalaryOption={minSalaryOption}
+            salaryOptions={SALARY_OPTIONS}
+          />
+
+          <section className="min-w-0 flex-1 bg-white px-6 py-5">
+            <div className="mb-4">
+              <h1 className="text-lg font-semibold text-gray-900">求人一覧</h1>
+              <div className="mt-1 text-xs text-gray-600">
+                総件数: {jobs.length}件
+              </div>
+            </div>
+
+            {errorMessage && (
+              <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                {errorMessage}
+              </div>
+            )}
+
+            {!errorMessage && jobs.length === 0 ? (
+              <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-sm text-gray-600">
+                条件に一致する求人がありません。
+              </div>
+            ) : !errorMessage ? (
+              <div className="space-y-4">
+                {jobs.map((job) => (
+                  <JobCard key={String(job.id)} job={job} />
+                ))}
+              </div>
+            ) : null}
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              selectedCategories={selectedCategories}
+              minSalaryOption={minSalaryOption}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </section>
         </div>
       </main>
     </div>
